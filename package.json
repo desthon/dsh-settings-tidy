@@ -1,7 +1,7 @@
 {
   "name": "dsh-settings-tidy",
-  "version": "1.0.0",
-  "description": "DeepSeek Harness plugin: group and collapse the settings sidebar so many plugin sections stay tidy",
+  "version": "1.1.0",
+  "description": "DeepSeek Harness plugin: group and collapse the settings sidebar, hide sections, and organize plugin-config cards so many plugin sections stay tidy",
   "type": "module",
   "exports": {
     ".": "./dsh/index.js",
@@ -14,6 +14,9 @@
       "inject": [],
       "platform": "web",
       "immediately": true
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
     }
   },
   "keywords": [

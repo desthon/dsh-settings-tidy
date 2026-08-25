@@ -1,0 +1,8 @@
+# dsh-settings-tidy bundle patch: insert the plugin row into the profile.
+# The node half (dsh/index.js) is a no-op; the browser half (dsh/client.js)
+# adds the "整理" settings section and compact/grouping features.
+- insert:
+    - id: dsh-settings-tidy
+      name: 'dsh-settings-tidy'
+      config:
+        enabled: true
