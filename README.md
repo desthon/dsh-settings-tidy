@@ -1,0 +1,126 @@
+# dsh-settings-tidy
+
+在 DSH 中安装了大量插件后，设置侧边栏会变得又长又乱。**dsh-settings-tidy** 帮你把设置面板保持整洁：
+
+- 一键切换**紧凑模式**，让侧边栏一屏显示更多分区；
+- 自动把「插件 → 配置」里的配置卡片按类别折叠成**可展开的分组**；
+- 全部偏好本地持久化，不依赖服务器、不影响其他插件。
+
+---
+
+## 功能
+
+### 1. 紧凑模式 (Compact Mode)
+
+缩小设置侧边栏导航的间距、cell 高度与标题字号，并把导航区域变为可滚动，让更多分区一屏放下。
+
+切换入口：设置面板 →「整理」分区 → **紧凑模式** 开关。
+
+### 2. 插件配置卡片分组 (Plugin Config Card Grouping)
+
+「插件 → 配置」(Plugins → Configurable) 页中，每个插件显示一张配置卡片。本插件按关键自动把这些卡片归类为可折叠的分组，点击组标题即可展开/收起，方便快速找到某个插件的配置。
+
+当前分组规则：
+
+| 分组 | 匹配关键字（不区分大小写） |
+| --- | --- |
+| AI / 模型 | model, provider, llm, deepseek, pi-ai, language model 等 |
+| 网络与密钥 | web, search, 搜索, network, api key, 密钥, token 等 |
+| 终端 / Shell | bash, shell, pwsh, command, 命令, terminal, timeout 等 |
+| Agent / 会话 | agent, preset, session, 代理, 会话 等 |
+| 插件 | plugin, inventory, 插件 等 |
+| 文件与存储 | path, directory, workspace, storage, 路径, 目录, 存储 等 |
+| 其他配置 | 未匹配到以上任何规则的卡片 |
+
+### 3. 独立的「整理」设置分区
+
+在设置侧边栏末尾新增一个 **整理** 分区（id: `tidy`），集中管理所有整理功能，并提供每个功能的说明。
+
+---
+
+## 安装
+
+方式一：复制到 DSH 插件目录
+
+```bash
+cp -r dsh-settings-tidy ~/.dsh/plugins/
+```
+
+方式二：把整个 `dsh-settings-tidy` 目录放到你配置的其他 DSH 插件搜索路径下。
+
+安装后**重启 DSH** 即可生效。
+
+---
+
+## 使用
+
+1. 点击 dsh 侧边栏底部的 **设置齿轮** 图标，打开设置面板；
+2. 在侧边栏列表末尾找到 **整理** 分区；
+3. 开启「紧凑模式」和/或「插件卡片分组」；
+4. 设置会自动保存（`localStorage`），下次打开仍然有效。
+
+---
+
+## 目录结构
+
+```
+dsh-settings-tidy/
+├── LICENSE            # MIT 许可证
+├── README.md          # 本文件
+├── package.json       # DSH 插件清单（name / exports / dsh.client 配置）
+└── dsh/
+    ├── index.js       # Host 端入口（空壳，本插件无 Host 逻辑）
+    └── client.js      # 浏览器端实现（核心）
+```
+
+---
+
+## 技术原理
+
+- **设置分区**：通过 DSH 的 slot 系统向 `settings.section` 注册一个 `id: "tidy"`、`order: 900` 的条目，并注入一个 React 组件作为分区内容。
+- **紧凑模式**：把偏好写入 `<html data-dsh-tidy="compact">`，再用 CSS 选择器 `[data-dsh-tidy="compact"] .VOzbGW_*` 覆盖纳米组件的默认间距/尺寸。DSH 的 CSS 采用 hashed class 命名，选择器直接匹配原生设置外壳的已知类名。
+- **卡片分组**：用 `MutationObserver` 监听 DOM，等「配置」页的卡片 `<ul class*=cards>` 渲染后，把每张卡片按关键字分桶，并用 **DOM 节点重排**（移动宿主）+ 折叠容器重新包裹。只移动 DOM、不修改 React 管理的属性与文本，因此不干预 React 渲染树。
+- **偏好持久化**：全部读写 `localStorage` 的 `dsh-settings-tidy` 键，无任何服务端/网络依赖。
+
+---
+
+## 兼容性
+
+- 纯客户端插件，**无需 Host 端支持**，`dsh/index.js` 为空壳。
+- **不影响其他插件**正常注册设置项；不 shadow `sidebar.settings` 或 `settings.section` 已有条目。
+- **不侵入 React 渲染树**，分组仅做 DOM 重排，与其他插件无直接耦合。
+- 仅依赖 `react`（由 DSH 客户端运行时提供），通过 `window.__ModuleLoader__.load` 以懒惰 CJS 方式加载，无需构建步骤。
+
+> 说明：DSH 的 slot 系统会拒绝重复声明同一 slot 的 children，因此无法在保持所有分区内容不变的前提下整体替换设置外壳。本插件采用**增量式**方案——保留原生设置面板的完整性，通过 CSS 与 DOM 操作达到整理效果，这是当前架构下最安全、兼容性最好的优化路径。
+
+---
+
+## 已知限制
+
+- 卡片分组使用关键字启发式归类，极个别卡片可能被分到「其他配置」；你可以在 `dsh/client.js` 顶部的 `groupKeyOf` 函数中调整正则规则。
+- 紧凑模式针对当前 DSH 原生设置外壳的 hashed class 编写；若未来 DSH 调整这些类名，需要同步更新 `dsh/client.js` 中的 CSS 选择器。
+
+---
+
+## 开发
+
+本插件无构建步骤，改完即用：
+
+```bash
+# 校验语法
+node --check dsh/client.js
+node --check dsh/index.js
+```
+
+主要改动点都在 `dsh/client.js`：
+
+- 分组规则：`groupKeyOf()`
+- CSS 覆盖：`CSS` 字符串
+- 分区组件：`SettingsTidySection`
+- 入口：`apply(ctx)`
+
+---
+
+## License
+
+[MIT](LICENSE)
