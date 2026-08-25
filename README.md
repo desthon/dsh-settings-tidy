@@ -3,7 +3,6 @@
 在 DSH 中安装了大量插件后，设置侧边栏会变得又长又乱。**dsh-settings-tidy** 帮你把设置面板保持整洁：
 
 - 一键切换**紧凑模式**，让侧边栏一屏显示更多分区；
-- 自动把「插件 → 配置」里的配置卡片按类别折叠成**可展开的分组**；
 - **手动分区整理**：把设置侧边栏的各个分区归入可折叠分组，并按需**隐藏**不常用的分区；
 - 全部偏好本地持久化，不依赖服务器、不影响其他插件。
 
@@ -17,25 +16,7 @@
 
 切换入口：设置面板 →「整理」分区 → **紧凑模式** 开关。
 
-### 2. 插件配置卡片分组 (Plugin Config Card Grouping)
-
-「插件 → 配置」(Plugins → Configurable) 页中，每个插件显示一张配置卡片。本插件按关键自动把这些卡片归类为可折叠的分组，点击组标题即可展开/收起，方便快速找到某个插件的配置。
-
-当前分组规则：
-
-| 分组 | 匹配关键字（不区分大小写） |
-| --- | --- |
-| AI / 模型 | model, provider, llm, deepseek, pi-ai, language model 等 |
-| 网络与密钥 | web, search, 搜索, network, api key, 密钥, token 等 |
-| 终端 / Shell | bash, shell, pwsh, command, 命令, terminal, timeout 等 |
-| Agent / 会话 | agent, preset, session, 代理, 会话 等 |
-| 插件 | plugin, inventory, 插件 等 |
-| 文件与存储 | path, directory, workspace, storage, 路径, 目录, 存储 等 |
-| 其他配置 | 未匹配到以上任何规则的卡片 |
-
-### 3. 侧边栏分区整理 (Sidebar Section Grouping & Hiding)
-
-**v1.1.0 新增功能。**
+### 2. 侧边栏分区整理 (Sidebar Section Grouping & Hiding)
 
 把设置面板左侧导航栏中的分区（通用设置、模型、插件、Agent 预设等）归入可折叠的分组，并可**隐藏**不常用的分区。
 
@@ -46,7 +27,7 @@
   - **分组归属**：手动指定该分区属于哪个分组（支持「不分组 / 通用 / 插件与扩展 / 模型与连接 / Agent 与预设 / 整理」）。
 - 隐藏和分组配置通过 label 文字匹配，支持**大小写不敏感**。
 
-### 4. 独立的「整理」设置分区
+### 3. 独立的「整理」设置分区
 
 在设置侧边栏末尾新增一个 **整理** 分区（id: `tidy`），集中管理所有整理功能，并提供每个功能的说明。
 
@@ -54,13 +35,9 @@
 
 ## 安装
 
-方式一：复制到 DSH 插件目录
-
 ```bash
-cp -r dsh-settings-tidy ~/.dsh/plugins/
+dsh plugin --profile web add github:desthon/dsh-settings-tidy
 ```
-
-方式二：把整个 `dsh-settings-tidy` 目录放到你配置的其他 DSH 插件搜索路径下。
 
 安装后**重启 DSH** 即可生效。
 
@@ -70,7 +47,7 @@ cp -r dsh-settings-tidy ~/.dsh/plugins/
 
 1. 点击 dsh 侧边栏底部的 **设置齿轮** 图标，打开设置面板；
 2. 在侧边栏列表末尾找到 **整理** 分区；
-3. 开启「紧凑模式」「插件卡片分组」和/或「侧边栏分区整理」；
+3. 开启「紧凑模式」和/或「侧边栏分区整理」；
 4. 在「分区显示设置」里可为每个分区调整显示/隐藏与分组归属；
 5. 设置会自动保存（`localStorage`），下次打开仍然有效。
 
@@ -94,7 +71,6 @@ dsh-settings-tidy/
 
 - **设置分区**：通过 DSH 的 slot 系统向 `settings.section` 注册一个 `id: "tidy"`、`order: 900` 的条目，并注入一个 React 组件作为分区内容。
 - **紧凑模式**：把偏好写入 `<html data-dsh-tidy="compact">`，再用 CSS 选择器 `[data-dsh-tidy="compact"] .VOzbGW_*` 覆盖纳米组件的默认间距/尺寸。DSH 的 CSS 采用 hashed class 命名，选择器直接匹配原生设置外壳的已知类名。
-- **卡片分组**：用 `MutationObserver` 监听 DOM，等「配置」页的卡片 `<ul class*=cards>` 渲染后，把每张卡片按关键字分桶，并用 **DOM 节点重排**（移动宿主）+ 折叠容器重新包裹。只移动 DOM、不修改 React 管理的属性与文本，因此不干预 React 渲染树。
 - **侧边栏分区整理**：`MutationObserver` 监听设置外壳的导航栏 `<nav.VOzbGW_nav .VOzbGW_navList>`，按分区标签文字匹配用户配置，用 `display:contents` 折叠容器对相邻分区分组、用类名隐藏指定分区。因为 DSH 没有在 DOM 暴露分区内部 id，这里以**可见标签**作为匹配键，并对大小写不敏感。
 - **偏好持久化**：全部读写 `localStorage` 的 `dsh-settings-tidy` 键，无任何服务端/网络依赖。
 
@@ -113,7 +89,6 @@ dsh-settings-tidy/
 
 ## 已知限制
 
-- 卡片分组使用关键字启发式归类，极个别卡片可能被分到「其他配置」；你可以在 `dsh/client.js` 顶部的 `groupKeyOf` 函数中调整正则规则。
 - 侧边栏分区整理以**分区可见标签**作为匹配键（DSH 未暴露分区内部 id）；若同一系统提示下有重名分区，个别条目可能匹配到命名相同的分区。
 - 紧凑模式与侧边栏分区整理针对当前 DSH 原生设置外壳的 hashed class 编写（`VOzbGW_*`）；若未来 DSH 调整这些类名，需要同步更新 `dsh/client.js` 中的 CSS 选择器与 DOM 选择器。
 
@@ -131,8 +106,8 @@ node --check dsh/index.js
 
 主要改动点都在 `dsh/client.js`：
 
-- 分组规则：`groupKeyOf()`
-- 侧边栏分区规则：`NAV_GROUPS`、`arrangeNav()`
+- 分组规则：分区自动分组映射 `NAV_GROUPS`
+- 侧边栏分区整理：`arrangeNav()`、`syncNavHidden()`
 - 分区显示设置：`SectionSettings` 组件
 - CSS 覆盖：`CSS` 字符串
 - 分区组件：`SettingsTidySection`
