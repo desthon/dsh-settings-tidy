@@ -141,6 +141,7 @@ window.__ModuleLoader__.load({
         var key = labelOf(cell)
         // Only user-assigned groups apply; there is no built-in auto mapping.
         var grp = mapValue(groups, key) || ''
+        var isHidden = !!mapValue(hidden, key)
         return { cell: cell, key: key, grp: grp, isHidden: isHidden }
       })
       // Collect consecutive same-group runs.
@@ -221,7 +222,13 @@ window.__ModuleLoader__.load({
           syncRootAttr(prefs)
           savePrefs(prefs)
           var t = window.setTimeout(function () {
-            if (prefs.tidyNav) arrangeNav(document)
+            if (prefs.tidyNav) {
+              // Clear the arranged flag so arrangeNav does a full rebuild
+              // (group assignments may have changed, not just hide state).
+              var nl = document.querySelector('nav.VOzbGW_nav .VOzbGW_navList')
+              if (nl) nl.removeAttribute(NAV_NS)
+              arrangeNav(document)
+            }
           }, 50)
           return function () { window.clearTimeout(t) }
         }, [prefs])
