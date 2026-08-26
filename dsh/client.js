@@ -72,26 +72,11 @@ window.__ModuleLoader__.load({
     // React doesn't expose section ids in the DOM, so we identify each cell by
     // its label text (the very text the user sees). The organizer lets users:
     //   1) hide sections they don't use (cells get display:none), and
-    //   2) fold sections into named, collapsible groups (re-parented nodes).
+    //   2) fold sections into user-created, collapsible groups (re-parented
+    //      nodes). Groups are created by the user in the settings panel, never
+    //      auto-assigned by the plugin.
     // It is a pure DOM pass that never mutates React-managed text/attributes.
     var NAV_NS = 'data-dsh-tidy-nav-arranged'
-    var NAV_GROUPS = {
-      '通用': '通用',
-      '通用设置': '通用',
-      'general': '通用',
-      '插件': '插件与扩展',
-      'plugins': '插件与扩展',
-      '插件管理': '插件与扩展',
-      '模型': '模型与连接',
-      'models': '模型与连接',
-      'Agent': 'Agent 与预设',
-      '代理': 'Agent 与预设',
-      'agent': 'Agent 与预设',
-      'agent-presets': 'Agent 与预设',
-      '预设': 'Agent 与预设',
-      '整理': '整理',
-      'tidy': '整理'
-    }
 
     // Keep hide toggles applied without tearing down group wrappers on every
     // observer tick: this walks all live nav cells (whether wrapped or not) and
@@ -154,9 +139,8 @@ window.__ModuleLoader__.load({
       // First pass: compute plan and collect cells per group.
       var plan = cells.map(function (cell) {
         var key = labelOf(cell)
-        var manual = mapValue(groups, key)
-        var grp = manual || (mapValue(NAV_GROUPS, key) || '')
-        var isHidden = !!mapValue(hidden, key)
+        // Only user-assigned groups apply; there is no built-in auto mapping.
+        var grp = mapValue(groups, key) || ''
         return { cell: cell, key: key, grp: grp, isHidden: isHidden }
       })
       // Collect consecutive same-group runs.
@@ -268,7 +252,7 @@ window.__ModuleLoader__.load({
         h('p', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: '13px', margin: '0 0 8px' } }, '当安装了大量插件时，设置侧边栏会变得又长又乱。这里提供了几种让它保持整洁的方式。'),
         row('紧凑模式', '缩小侧边栏导航的间距，让更多分区一屏放下。',
           toggle(prefs.compact, function (v) { update({ compact: v }) })),
-        row('侧边栏分区整理', '把设置侧边栏的分区归入折叠组，并可隐藏不常用的分区。',
+        row('侧边栏分区整理', '把设置侧边栏的分区归入你自己创建的折叠组，并可隐藏不常用的分区。',
           toggle(prefs.tidyNav, function (v) { update({ tidyNav: v }) })),
         row('保留最后一次打开的分区', '再次打开设置时自动回到上次查看的分区（原生功能；此处为提示）。',
           h('span', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px' } }, '原生行为')),
@@ -318,6 +302,11 @@ window.__ModuleLoader__.load({
 
       var hidden = prefs.navHidden || {}
       var groups = prefs.navGroups || {}
+      // User-created groups live in prefs.navGroupNames (array of display names),
+      // so titles are fully user-defined rather than plugin-preset.
+      var groupNames = prefs.navGroupNames || []
+
+      var [newGroup, setNewGroup] = useState('')
 
       function toggleHidden(key) {
         var next = Object.assign({}, hidden)
@@ -331,19 +320,75 @@ window.__ModuleLoader__.load({
         else delete next[key]
         update({ navGroups: next })
       }
+      function renameGroup(oldName, newName) {
+        var finalName = (newName || '').trim()
+        if (!finalName || finalName === oldName) return
+        if (groupNames.indexOf(finalName) !== -1) return
+        // Update the master group list and every section assigned to it.
+        var names = groupNames.map(function (n) { return n === oldName ? finalName : n })
+        var g = {}
+        for (var k in groups) { g[k] = groups[k] === oldName ? finalName : groups[k] }
+        update({ navGroupNames: names, navGroups: g })
+      }
+      function addGroup() {
+        var name = (newGroup || '').trim()
+        setNewGroup('')
+        if (!name || groupNames.indexOf(name) !== -1) return
+        update({ navGroupNames: groupNames.concat(name) })
+      }
+      function removeGroup(name) {
+        var names = groupNames.filter(function (n) { return n !== name })
+        var g = {}
+        for (var k in groups) { if (groups[k] !== name) g[k] = groups[k] }
+        update({ navGroupNames: names, navGroups: g })
+      }
+      function reassignSectionGrp(key, oldName, newName) {
+        var g = Object.assign({}, groups)
+        if (newName) g[key] = newName
+        else delete g[key]
+        update({ navGroups: g })
+      }
 
       if (sections.length === 0) {
         return h('div', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px', padding: '4px 0' } }, '暂未检测到设置分区。请先打开设置面板。')
       }
 
-      var GROUP_OPTIONS = [
-        { value: '', label: '不分组' },
-        { value: '通用', label: '通用' },
-        { value: '插件与扩展', label: '插件与扩展' },
-        { value: '模型与连接', label: '模型与连接' },
-        { value: 'Agent 与预设', label: 'Agent 与预设' },
-        { value: '整理', label: '整理' }
-      ]
+      // ---- Group management block (create / rename / delete) ----
+      var groupManage = h('div', {},
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' } },
+          h('input', {
+            type: 'text',
+            value: newGroup,
+            placeholder: '新建分组名称',
+            onChange: function (e) { setNewGroup(e.target.value) },
+            onKeyDown: function (e) { if (e.key === 'Enter') addGroup() },
+            style: { flex: '1', border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-2)', color: 'var(--dsw-alias-label-primary)', borderRadius: '6px', padding: '4px 8px', fontSize: '12px' }
+          }),
+          h('button', {
+            type: 'button',
+            onClick: addGroup,
+            style: { border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-2)', color: 'var(--dsw-alias-label-primary)', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', flex: 'none' }
+          }, '新建')
+        ),
+        groupNames.length === 0
+          ? h('div', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px', padding: '2px 0 8px' } }, '尚未创建分组。在上方输入名称并点击「新建」即可创建。')
+          : h('div', {}, groupNames.map(function (name) {
+            return h('div', {
+              key: name,
+              style: { display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 0' }
+            },
+              h('span', { style: { flex: '1', color: 'var(--dsw-alias-label-primary)', fontSize: '12px' } }, name),
+              h('button', {
+                type: 'button',
+                onClick: function () { removeGroup(name) },
+                style: { border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-2)', color: 'var(--dsw-alias-label-tertiary)', borderRadius: '999px', padding: '1px 8px', fontSize: '11px', cursor: 'pointer', flex: 'none' }
+              }, '删除')
+            )
+          }))
+      )
+
+      // ---- Drop-down options for group assignment ----
+      var groupOpts = [{ value: '', label: '不分组' }].concat(groupNames.map(function (n) { return { value: n, label: n } }))
 
       var rows = sections.map(function (key) {
         var isHidden = !!hidden[key]
@@ -361,13 +406,17 @@ window.__ModuleLoader__.load({
           h('select', {
             value: grp,
             onChange: function (e) { setGroup(key, e.target.value) },
-            style: { border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', borderRadius: '6px', padding: '2px 4px', fontSize: '11px', cursor: 'pointer', flex: 'none', maxWidth: '110px' }
-          }, GROUP_OPTIONS.map(function (opt) {
+            style: { border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', borderRadius: '6px', padding: '2px 4px', fontSize: '11px', cursor: 'pointer', flex: 'none', maxWidth: '120px' }
+          }, groupOpts.map(function (opt) {
             return h('option', { key: opt.value, value: opt.value }, opt.label)
           }))
         )
       })
-      return h('div', {}, rows)
+      return h('div', {},
+        // Group management sits above the per-section rows.
+        groupManage,
+        h('div', { style: { marginTop: '6px' } }, rows)
+      )
     }
 
     function apply(ctx) {
